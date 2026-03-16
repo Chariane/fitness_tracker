@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<openerp>
+	<data>
+		<!-- TREE -->
+		<record id="view_groupe_taxation_tree" model="ir.ui.view">
+            <field name="name">groupe_taxation.tree</field>
+            <field name="model">e.mcf.groupe.taxation</field>
+            <field name="arch" type="xml">
+                <tree string="Groupe de taxation" editable="top">
+                    <field name="reference"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+		<!-- MENU -->
+	    <record model="ir.actions.act_window" id="action_groupe_taxation">
+	        <field name="name">Groupe de taxation</field>
+	        <field name="res_model">e.mcf.groupe.taxation</field>
+	        <field name="view_type">form</field>
+	        <field name="view_mode">tree</field>
+	    </record>
+
+	    <menuitem id="menu_groupe_taxation" name="[DGI] Groupes de taxation" parent="account.next_id_27" action="action_groupe_taxation" sequence="40" groups="base.group_system"/>
+	    
+	</data>
+</openerp>

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<openerp>
+	<data>
+        <!-- ACCOUNT PAYMENT METHOD -->
+		<record model="ir.ui.view" id="view_account_payment_method_e_mcf">
+            <field name="name">account.payment.method.e.mcf</field>
+            <field name="model">account.payment.method</field>
+            <field name="inherit_id" ref="smile_payment_method.account_payment_method_form"/>
+            <field name="arch" type="xml">
+                <field name="active" position="after">
+                    <field name="type_paiement_id" widget="selection" />
+                </field>
+            </field>
+        </record>    
+	</data>
+</openerp>

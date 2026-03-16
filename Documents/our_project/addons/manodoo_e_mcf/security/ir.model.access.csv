@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_manodoo_e_mcf_groupe_taxation_manager,manodoo_e_mcf groupe_taxation m,model_e_mcf_groupe_taxation,account.group_account_manager,1,1,1,1
+access_manodoo_e_mcf_groupe_taxation_invoice,manodoo_e_mcf groupe_taxation i,model_e_mcf_groupe_taxation,account.group_account_invoice,1,0,0,0
+access_manodoo_e_mcf_type_paiement_manager,manodoo_e_mcf type_paiement m,model_e_mcf_type_paiement,account.group_account_manager,1,1,1,1
+access_manodoo_e_mcf_type_paiement_invoice,manodoo_e_mcf type_paiement i,model_e_mcf_type_paiement,account.group_account_invoice,1,0,0,0

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<openerp>
+	<data>
+		<!-- COMPANY FORM -->
+		<record id="view_manodoo_e_mcf_company_form" model="ir.ui.view">
+			<field name="name">manodoo_e_mcf.company_form</field>
+			<field name="model">res.company</field>
+            <field name="inherit_id" ref="base.view_company_form"/>
+			<field name="arch" type="xml">
+				<xpath expr="//group[@name='account_grp']" position="after">
+                    <group name="e_mcf_grp" string="Spécifications e-MCF" groups="base.group_system">
+                        <field name="host"/>
+						<label for="jeton" />
+						<div>
+							<field name="jeton" class="oe_inline" attrs="{'required': [('host', 'in', ['test', 'prod'])]}"/>
+							<button type="object" name="verifier" string="Vérifier validité" colspan="2" class="oe_inline"/>
+							<!-- <button readonly="True" class="oe_inline" icon="gtk-apply" attrs="{'invisible': [('test_jeton', 'in', ['','error'])], 'readonly': [('test_jeton', 'not in', ['','error'])]}"/>
+							<button readonly="True" class="oe_inline" icon="gtk-cancel" attrs="{'invisible': [('test_jeton', 'in', ['','valid'])], 'readonly': [('test_jeton', 'not in', ['','valid'])]}"/> -->
+						</div>
+						<!-- <field name="test_jeton" invisible="1" readonly="1"/> -->
+						<button type="object" name="factures_attente" string="Factures en attente" colspan="2" />
+                    </group>
+                </xpath>
+			</field>
+		</record>	
+	</data>
+</openerp>
