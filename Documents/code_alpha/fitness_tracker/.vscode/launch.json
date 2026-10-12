@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Pulse Fitness (Chrome, stable port)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--web-hostname=localhost",
+        "--web-port=5000"
+      ],
+      "templateFor": ""
+    }
+  ]
+}
