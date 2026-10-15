@@ -11,14 +11,26 @@ class FitnessService {
   FitnessService._({
     FirebaseFirestore? firestore,
     String? userId,
+    User? user,
     this.connectionError,
   }) : _firestore = firestore,
-       _userId = userId;
+       _userId = userId,
+       _user = user;
 
   final FirebaseFirestore? _firestore;
   final String? _userId;
+  final User? _user;
   final String? connectionError;
   bool get isConnected => _firestore != null;
+  String? get userName => _user?.displayName?.trim();
+
+  Future<void> updateUserName(String name) async {
+    final user = _user;
+    if (user == null) {
+      throw StateError('Le profil est indisponible en mode aperçu.');
+    }
+    await user.updateDisplayName(name.trim());
+  }
 
   final List<Workout> _demoWorkouts = [
     Workout(
@@ -121,6 +133,7 @@ class FitnessService {
         return FitnessService._(
           firestore: FirebaseFirestore.instance,
           userId: uid,
+          user: user,
         );
       }
     } catch (error) {

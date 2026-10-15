@@ -4,12 +4,18 @@ import 'package:flutter/material.dart';
 import '../models/workout.dart';
 import '../services/fitness_service.dart';
 
-const ink = Color(0xFF1C2822);
-const muted = Color(0xFF7A8980);
-const line = Color(0xFFE8ECE7);
-const canvas = Color(0xFFF5F6F2);
 const green = Color(0xFF164E3B);
 const lime = Color(0xFFB7E56A);
+
+Color _ink(BuildContext context) => Theme.of(context).colorScheme.onSurface;
+Color _muted(BuildContext context) =>
+    Theme.of(context).colorScheme.onSurfaceVariant;
+Color _line(BuildContext context) =>
+    Theme.of(context).colorScheme.outlineVariant;
+Color _panelSurface(BuildContext context) =>
+    Theme.of(context).colorScheme.surfaceContainerLow;
+Color _softSurface(BuildContext context) =>
+    Theme.of(context).colorScheme.surfaceContainer;
 
 class _PulseLogo extends StatelessWidget {
   const _PulseLogo({required this.size});
@@ -76,8 +82,15 @@ String _shortDate(DateTime date) {
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({required this.service, super.key});
+  const DashboardScreen({
+    required this.service,
+    required this.isDark,
+    required this.onThemeToggle,
+    super.key,
+  });
   final FitnessService service;
+  final bool isDark;
+  final VoidCallback onThemeToggle;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -92,6 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Stream<List<Workout>> workoutsStream;
   late Stream<Map<String, int>> stepsStream;
   late final AnimationController introController;
+  String? userName;
 
   @override
   void initState() {
@@ -103,7 +117,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     today = FitnessService.startOfDay(DateTime.now());
     weekStart = FitnessService.startOfWeek(today);
     selectedDay = today;
+    userName = widget.service.userName;
     _createStreams();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          widget.service.isConnected &&
+          (userName?.isEmpty ?? true)) {
+        _editName();
+      }
+    });
   }
 
   @override
@@ -132,7 +154,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void didUpdateWidget(covariant DashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.service != widget.service) _createStreams();
+    if (oldWidget.service != widget.service) {
+      userName = widget.service.userName;
+      _createStreams();
+    }
   }
 
   void _createStreams() {
@@ -169,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             _PulseLogo(size: 38),
             const SizedBox(width: 11),
-            const Text(
+            Text(
               'pulse',
               style: TextStyle(
                 fontSize: 23,
@@ -180,13 +205,28 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: widget.isDark
+                ? 'Activer le mode clair'
+                : 'Activer le mode sombre',
+            onPressed: widget.onThemeToggle,
+            icon: Icon(
+              widget.isDark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+            ),
+          ),
           Container(
             margin: const EdgeInsets.only(right: 22),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: widget.service.isConnected
-                  ? const Color(0xFFE7F3EA)
-                  : const Color(0xFFFFF2D9),
+                  ? (widget.isDark
+                        ? const Color(0xFF20392D)
+                        : const Color(0xFFE7F3EA))
+                  : (widget.isDark
+                        ? const Color(0xFF3D3220)
+                        : const Color(0xFFFFF2D9)),
               borderRadius: BorderRadius.circular(30),
             ),
             child: Row(
@@ -294,8 +334,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         onPressed: () => _showWorkoutForm(context),
         backgroundColor: green,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
+        icon: Icon(Icons.add_rounded),
+        label: Text(
           'Ajouter une séance',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
@@ -333,29 +373,113 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         Text(
           '${weekdays[now.weekday - 1]} ${now.day} ${months[now.month - 1]}',
-          style: const TextStyle(
-            color: muted,
+          style: TextStyle(
+            color: _muted(context),
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 7),
-        const Text(
-          'Bonjour, Nadège 👋',
-          style: TextStyle(
-            color: ink,
-            fontSize: 29,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.1,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                child: Text(
+                  userName == null || userName!.isEmpty
+                      ? 'Bonjour 👋'
+                      : 'Bonjour, $userName 👋',
+                  key: ValueKey(userName),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: _ink(context),
+                    fontSize: 29,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1.1,
+                  ),
+                ),
+              ),
+            ),
+            if (widget.service.isConnected)
+              IconButton(
+                tooltip: 'Modifier mon prénom',
+                onPressed: _editName,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: _muted(context),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 5),
-        const Text(
+        Text(
           'Chaque mouvement compte. Voici ton activité.',
-          style: TextStyle(color: muted, fontSize: 14),
+          style: TextStyle(color: _muted(context), fontSize: 14),
         ),
       ],
     );
+  }
+
+  Future<void> _editName() async {
+    final controller = TextEditingController(text: userName ?? '');
+    final formKey = GlobalKey<FormState>();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Ton prénom'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 30,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Comment t’appeler ?',
+              hintText: 'Ex. Nadège',
+            ),
+            validator: (value) {
+              final name = value?.trim() ?? '';
+              if (name.isEmpty) return 'Saisis ton prénom pour continuer.';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, controller.text.trim());
+              }
+            },
+            child: Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || !mounted) return;
+
+    try {
+      await widget.service.updateUserName(name);
+      if (!mounted) return;
+      setState(() => userName = name);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ton prénom a été enregistré.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible d’enregistrer le prénom : $error')),
+      );
+    }
   }
 
   Widget _topCards(
@@ -463,7 +587,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.directions_walk, color: lime, size: 19),
+                      Icon(Icons.directions_walk, color: lime, size: 19),
                       const SizedBox(width: 7),
                       Text(
                         'Pas le ${_shortDate(selectedDate)}',
@@ -479,7 +603,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         onPressed: () =>
                             _showStepsDialog(context, steps, selectedDate),
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.edit_outlined,
                           color: Colors.white70,
                           size: 18,
@@ -494,7 +618,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     curve: Curves.easeOutCubic,
                     builder: (context, animatedSteps, _) => Text(
                       _number(animatedSteps),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 38,
                         fontWeight: FontWeight.w800,
@@ -505,7 +629,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 6),
                   Text(
                     '${_number(stepGoal)} pas par jour',
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
                   ),
                 ],
               ),
@@ -546,14 +670,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                         curve: Curves.easeOutCubic,
                         builder: (context, percent, _) => Text(
                           '${percent.round()}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 21,
                           ),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'objectif',
                         style: TextStyle(color: Colors.white60, fontSize: 10),
                       ),
@@ -577,12 +701,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     width: double.infinity,
     padding: const EdgeInsets.all(17),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: _panelSurface(context),
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: line),
+      border: Border.all(color: _line(context)),
       boxShadow: [
         BoxShadow(
-          color: ink.withValues(alpha: .025),
+          color: _ink(context).withValues(alpha: .025),
           blurRadius: 18,
           offset: const Offset(0, 6),
         ),
@@ -608,8 +732,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: muted,
+                style: TextStyle(
+                  color: _muted(context),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -635,10 +759,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Text(
                 value,
                 key: ValueKey(value),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: ink,
+                  color: _ink(context),
                   letterSpacing: -1,
                 ),
               ),
@@ -648,7 +772,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 unit,
-                style: const TextStyle(color: muted, fontSize: 11),
+                style: TextStyle(color: _muted(context), fontSize: 11),
               ),
             ),
           ],
@@ -692,12 +816,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             tooltip: 'Semaine précédente',
             visualDensity: VisualDensity.compact,
             onPressed: () => _changeWeek(-1),
-            icon: const Icon(Icons.chevron_left_rounded, size: 20),
+            icon: Icon(Icons.chevron_left_rounded, size: 20),
           ),
           Text(
             '${weekStart.day}/${weekStart.month}',
-            style: const TextStyle(
-              color: muted,
+            style: TextStyle(
+              color: _muted(context),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -708,7 +832,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             onPressed: weekStart.isBefore(FitnessService.startOfWeek(today))
                 ? () => _changeWeek(1)
                 : null,
-            icon: const Icon(Icons.chevron_right_rounded, size: 20),
+            icon: Icon(Icons.chevron_right_rounded, size: 20),
           ),
         ],
       ),
@@ -717,16 +841,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Text(
             _number(total),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
-              color: ink,
+              color: _ink(context),
               fontWeight: FontWeight.w800,
               letterSpacing: -1,
             ),
           ),
-          const Text(
+          Text(
             'pas au total',
-            style: TextStyle(color: muted, fontSize: 11),
+            style: TextStyle(color: _muted(context), fontSize: 11),
           ),
           const SizedBox(height: 22),
           SizedBox(
@@ -761,8 +885,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 values[index] == 0
                                     ? ''
                                     : _compact(values[index]),
-                                style: const TextStyle(
-                                  color: muted,
+                                style: TextStyle(
+                                  color: _muted(context),
                                   fontSize: 9,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -791,7 +915,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                                                   ? green
                                                   : active
                                                   ? lime
-                                                  : const Color(0xFFDCE9D5),
+                                                  : Theme.of(context)
+                                                        .colorScheme
+                                                        .surfaceContainerHighest,
                                               borderRadius:
                                                   BorderRadius.circular(9),
                                             ),
@@ -804,7 +930,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                               Text(
                                 '${labels[index]} ${days[index].day}',
                                 style: TextStyle(
-                                  color: selected || active ? green : muted,
+                                  color: selected || active
+                                      ? green
+                                      : _muted(context),
                                   fontSize: 10,
                                   fontWeight: selected || active
                                       ? FontWeight.w800
@@ -822,9 +950,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
           const SizedBox(height: 9),
-          const Text(
+          Text(
             'Touche une journée pour consulter ses détails.',
-            style: TextStyle(color: muted, fontSize: 10),
+            style: TextStyle(color: _muted(context), fontSize: 10),
           ),
           const SizedBox(height: 18),
           Row(
@@ -870,7 +998,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 11),
     decoration: BoxDecoration(
-      color: const Color(0xFFF5F7F3),
+      color: _softSurface(context),
       borderRadius: BorderRadius.circular(13),
     ),
     child: Column(
@@ -882,8 +1010,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: ink,
+          style: TextStyle(
+            color: _ink(context),
             fontSize: 16,
             fontWeight: FontWeight.w800,
           ),
@@ -892,7 +1020,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: muted, fontSize: 9),
+          style: TextStyle(color: _muted(context), fontSize: 9),
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 3),
@@ -900,7 +1028,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: green, fontSize: 8),
+            style: TextStyle(color: green, fontSize: 8),
           ),
         ],
       ],
@@ -918,19 +1046,19 @@ class _DashboardScreenState extends State<DashboardScreen>
       trailing: Text(
         visible.length.toString() +
             (visible.length == 1 ? ' séance' : ' séances'),
-        style: const TextStyle(
-          color: muted,
+        style: TextStyle(
+          color: _muted(context),
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
       ),
       child: visible.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
                   'Aucune séance ce jour. Ajoute une activité pour la noter.',
-                  style: TextStyle(color: muted, fontSize: 12),
+                  style: TextStyle(color: _muted(context), fontSize: 12),
                 ),
               ),
             )
@@ -944,7 +1072,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     onDelete: () => _deleteWorkout(visible[i]),
                   ),
                   if (i != visible.length - 1)
-                    const Divider(height: 18, color: line),
+                    Divider(height: 18, color: _line(context)),
                 ],
               ],
             ),
@@ -982,7 +1110,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           width: 41,
           height: 41,
           decoration: BoxDecoration(
-            color: const Color(0xFFF0F4ED),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(13),
           ),
           child: Icon(icon, color: green, size: 20),
@@ -996,8 +1124,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 workout.type,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: ink,
+                style: TextStyle(
+                  color: _ink(context),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1007,7 +1135,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 details,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: muted, fontSize: 10),
+                style: TextStyle(color: _muted(context), fontSize: 10),
               ),
               if (note != null && note.isNotEmpty) ...[
                 const SizedBox(height: 3),
@@ -1015,7 +1143,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   note,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: muted, fontSize: 9),
+                  style: TextStyle(color: _muted(context), fontSize: 9),
                 ),
               ],
             ],
@@ -1025,13 +1153,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           tooltip: 'Modifier la séance',
           onPressed: onEdit,
           visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.edit_outlined, size: 18, color: muted),
+          icon: Icon(Icons.edit_outlined, size: 18, color: _muted(context)),
         ),
         IconButton(
           tooltip: 'Supprimer la séance',
           onPressed: onDelete,
           visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.delete_outline, size: 18, color: muted),
+          icon: Icon(Icons.delete_outline, size: 18, color: _muted(context)),
         ),
       ],
     );
@@ -1045,8 +1173,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     width: double.infinity,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: line),
+      color: _panelSurface(context),
+      border: Border.all(color: _line(context)),
       borderRadius: BorderRadius.circular(23),
       boxShadow: [
         BoxShadow(
@@ -1064,8 +1192,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: ink,
+                style: TextStyle(
+                  color: _ink(context),
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1084,20 +1212,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     width: double.infinity,
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: const Color(0xFFFFF7E8),
+      color: Theme.of(context).colorScheme.tertiaryContainer,
       borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: const Color(0xFFF2E4C8)),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, color: Color(0xFF9A6A10), size: 18),
+        Icon(
+          Icons.info_outline,
+          color: Theme.of(context).colorScheme.onTertiaryContainer,
+          size: 18,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             widget.service.connectionError ??
                 'Mode aperçu : les modifications ne sont pas enregistrées. Configure Firebase pour activer la sauvegarde.',
-            style: const TextStyle(
-              color: Color(0xFF7A5A20),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onTertiaryContainer,
               fontSize: 11,
               height: 1.4,
             ),
@@ -1148,16 +1280,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Supprimer cette séance ?'),
+        title: Text('Supprimer cette séance ?'),
         content: Text('Cette action supprimera « ${workout.type} ».'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Annuler'),
+            child: Text('Annuler'),
           ),
           FilledButton.tonal(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Supprimer'),
+            child: Text('Supprimer'),
           ),
         ],
       ),
@@ -1243,7 +1375,7 @@ class _StepsDialogState extends State<StepsDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Annuler'),
+        child: Text('Annuler'),
       ),
       FilledButton(
         onPressed: () {
@@ -1251,7 +1383,7 @@ class _StepsDialogState extends State<StepsDialog> {
             Navigator.pop(context, int.parse(controller.text.trim()));
           }
         },
-        child: const Text('Enregistrer'),
+        child: Text('Enregistrer'),
       ),
     ],
   );
@@ -1334,8 +1466,8 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return Container(
       padding: EdgeInsets.fromLTRB(22, 12, 22, 22 + bottomInset),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       child: SingleChildScrollView(
@@ -1350,7 +1482,7 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: line,
+                    color: _line(context),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1360,17 +1492,17 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                 widget.workout == null
                     ? 'Nouvelle séance'
                     : 'Modifier la séance',
-                style: const TextStyle(
-                  color: ink,
+                style: TextStyle(
+                  color: _ink(context),
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -.5,
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
+              Text(
                 'Ajoute les détails de ton activité.',
-                style: TextStyle(color: muted, fontSize: 13),
+                style: TextStyle(color: _muted(context), fontSize: 13),
               ),
               const SizedBox(height: 22),
               DropdownButtonFormField<String>(
@@ -1432,25 +1564,25 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
               const SizedBox(height: 14),
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F9F5),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: line),
+                  border: Border.all(color: _line(context)),
                 ),
                 child: ExpansionTile(
                   tilePadding: const EdgeInsets.symmetric(horizontal: 13),
                   childrenPadding: const EdgeInsets.fromLTRB(13, 0, 13, 14),
-                  leading: const Icon(Icons.tune_rounded, color: green),
-                  title: const Text(
+                  leading: Icon(Icons.tune_rounded, color: green),
+                  title: Text(
                     'Détails supplémentaires',
                     style: TextStyle(
-                      color: ink,
+                      color: _ink(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     'Facultatifs : distance, rythme, notes…',
-                    style: TextStyle(color: muted, fontSize: 10),
+                    style: TextStyle(color: _muted(context), fontSize: 10),
                   ),
                   children: [
                     Row(
@@ -1546,7 +1678,7 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
               const SizedBox(height: 14),
               OutlinedButton.icon(
                 onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                icon: Icon(Icons.calendar_today_outlined, size: 17),
                 label: Text(
                   date.year == DateTime.now().year &&
                           date.month == DateTime.now().month &&
@@ -1570,7 +1702,7 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(Icons.check_rounded),
+                      : Icon(Icons.check_rounded),
                   label: Text(
                     saving
                         ? 'Enregistrement…'

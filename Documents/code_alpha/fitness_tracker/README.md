@@ -2,10 +2,11 @@
 
 Pulse Fitness is a Flutter fitness tracker for Chrome and Android. It lets you record daily steps and workouts, then review daily and weekly progress.
 
-The interface uses a calm green visual theme, a custom Pulse logo, and subtle animations for the dashboard, progress ring, step count, and weekly chart.
+The interface includes light and dark themes, a custom Pulse logo, and subtle animations for the dashboard, progress ring, step count, and weekly chart.
 
 ## Features
 
+- Switch between light and dark themes; the selected theme is saved on the device
 - Enter your daily step count
 - Record an exercise type, duration, calories, and date, with optional distance, heart rate, strength sets/repetitions, and notes
 - Select any day in a week and inspect its steps and workouts
@@ -13,6 +14,7 @@ The interface uses a calm green visual theme, a custom Pulse logo, and subtle an
 - Edit or delete a workout entry; summaries show the extra details entered
 - Get clear validation messages when an entry is incomplete or invalid
 - See the Pulse logo in the browser tab and when installing the web app
+- Personalize the dashboard greeting with a name saved to the Firebase Authentication profile
 
 ## Run in Chrome
 
@@ -33,6 +35,8 @@ This app uses Firebase Authentication and Cloud Firestore. In the Firebase proje
 4. Publish the rules from `firestore.rules`. They restrict each user to their own records.
 
 The dashboard shows **Connecté** when Firebase is available. In preview mode, changes are temporary and are lost when the app closes.
+
+On the first connected launch, Pulse asks what name to use in the greeting. You can change it later with the edit icon beside the greeting. The name is stored in the Firebase Authentication profile for that anonymous account.
 
 ## Android
 
