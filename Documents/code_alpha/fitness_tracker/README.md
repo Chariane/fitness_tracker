@@ -2,22 +2,26 @@
 
 Pulse Fitness is a Flutter fitness tracker for Chrome and Android. It lets you record daily steps and workouts, then review daily and weekly progress.
 
+The interface uses a calm green visual theme, a custom Pulse logo, and subtle animations for the dashboard, progress ring, step count, and weekly chart.
+
 ## Features
 
 - Enter your daily step count
-- Record an exercise type, duration, calories, and date
-- View today’s activity and weekly step progress
-- Review recent workouts
+- Record an exercise type, duration, calories, and date, with optional distance, heart rate, strength sets/repetitions, and notes
+- Select any day in a week and inspect its steps and workouts
+- Browse previous weeks and compare weekly steps, sessions, active minutes, and calories
+- Edit or delete a workout entry; summaries show the extra details entered
 - Get clear validation messages when an entry is incomplete or invalid
+- See the Pulse logo in the browser tab and when installing the web app
 
 ## Run in Chrome
 
 From the project folder, run:
 
     flutter pub get
-    flutter run -d chrome --web-hostname=localhost --web-port=5000
+    flutter run -d web-server --web-hostname=localhost --web-port=5000
 
-The Firebase Web app configuration is included in `lib/services/fitness_service.dart`, so no `--dart-define` values are needed for Chrome. In VS Code, select **Pulse Fitness (Chrome, stable port)** in the Run and Debug menu and press F5. The fixed address (`http://localhost:5000`) lets Firebase reuse the same anonymous session across launches. Keep using this launch configuration; a different host or port creates a separate browser session.
+Open the URL printed by Flutter in your regular Chrome browser. Use this same address for each launch so Firebase keeps using the same anonymous account. The Firebase Web app configuration is included in `lib/services/fitness_service.dart`, so no `--dart-define` values are needed for Chrome. In VS Code, select **Pulse Fitness Web (persistent Chrome session)**, start the server, then open its URL in Chrome.
 
 ## Firebase setup
 

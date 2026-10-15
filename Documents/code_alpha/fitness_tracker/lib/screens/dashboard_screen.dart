@@ -11,6 +11,34 @@ const canvas = Color(0xFFF5F6F2);
 const green = Color(0xFF164E3B);
 const lime = Color(0xFFB7E56A);
 
+class _PulseLogo extends StatelessWidget {
+  const _PulseLogo({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF10392C), Color(0xFF267253)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(size * .32),
+      boxShadow: [
+        BoxShadow(
+          color: green.withValues(alpha: .2),
+          blurRadius: 12,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Icon(Icons.monitor_heart_rounded, color: lime, size: size * .64),
+  );
+}
+
 String _saveErrorMessage(Object error) {
   if (error is FirebaseException) {
     switch (error.code) {
@@ -29,6 +57,24 @@ String _saveErrorMessage(Object error) {
   return 'L’enregistrement a échoué : $error';
 }
 
+String _shortDate(DateTime date) {
+  const months = [
+    'janv.',
+    'févr.',
+    'mars',
+    'avr.',
+    'mai',
+    'juin',
+    'juil.',
+    'août',
+    'sept.',
+    'oct.',
+    'nov.',
+    'déc.',
+  ];
+  return '${date.day} ${months[date.month - 1]}';
+}
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({required this.service, super.key});
   final FitnessService service;
@@ -37,19 +83,50 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with SingleTickerProviderStateMixin {
   static const stepGoal = 10000;
   late final DateTime today;
-  late final DateTime weekStart;
+  late DateTime weekStart;
+  late DateTime selectedDay;
   late Stream<List<Workout>> workoutsStream;
   late Stream<Map<String, int>> stepsStream;
+  late final AnimationController introController;
 
   @override
   void initState() {
     super.initState();
+    introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
     today = FitnessService.startOfDay(DateTime.now());
     weekStart = FitnessService.startOfWeek(today);
+    selectedDay = today;
     _createStreams();
+  }
+
+  @override
+  void dispose() {
+    introController.dispose();
+    super.dispose();
+  }
+
+  Widget _entrance(Widget child, double start) {
+    final animation = CurvedAnimation(
+      parent: introController,
+      curve: Interval(start, 1, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, .055),
+          end: Offset.zero,
+        ).animate(animation),
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -64,6 +141,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     stepsStream = widget.service.watchSteps(weekStart, weekEnd);
   }
 
+  void _changeWeek(int offset) {
+    final nextWeek = weekStart.add(Duration(days: offset * 7));
+    final currentWeek = FitnessService.startOfWeek(today);
+    final earliestWeek = FitnessService.startOfWeek(
+      today.subtract(const Duration(days: 365)),
+    );
+    if (nextWeek.isBefore(earliestWeek) || nextWeek.isAfter(currentWeek)) {
+      return;
+    }
+
+    final weekdayOffset = selectedDay.weekday - 1;
+    setState(() {
+      weekStart = nextWeek;
+      selectedDay = nextWeek.add(Duration(days: weekdayOffset));
+      _createStreams();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -72,15 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         titleSpacing: 22,
         title: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: green,
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: const Icon(Icons.bolt_rounded, color: lime, size: 24),
-            ),
+            _PulseLogo(size: 38),
             const SizedBox(width: 11),
             const Text(
               'pulse',
@@ -151,37 +238,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _pageHeading(),
+                        _entrance(_pageHeading(), 0),
                         const SizedBox(height: 25),
-                        _topCards(
-                          context,
-                          wide: wide,
-                          steps: steps[FitnessService.dateKey(today)] ?? 0,
-                          workouts: workouts,
+                        _entrance(
+                          _topCards(
+                            context,
+                            wide: wide,
+                            steps:
+                                steps[FitnessService.dateKey(selectedDay)] ?? 0,
+                            workouts: workouts,
+                            selectedDate: selectedDay,
+                          ),
+                          .08,
                         ),
                         const SizedBox(height: 25),
-                        wide
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 6, child: _weeklyCard(steps)),
-                                  const SizedBox(width: 20),
-                                  Expanded(
-                                    flex: 4,
-                                    child: _activityCard(workouts),
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  _weeklyCard(steps),
-                                  const SizedBox(height: 18),
-                                  _activityCard(workouts),
-                                ],
-                              ),
+                        _entrance(
+                          wide
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 6,
+                                      child: _weeklyCard(steps, workouts),
+                                    ),
+                                    const SizedBox(width: 20),
+                                    Expanded(
+                                      flex: 4,
+                                      child: _activityCard(workouts),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  children: [
+                                    _weeklyCard(steps, workouts),
+                                    const SizedBox(height: 18),
+                                    _activityCard(workouts),
+                                  ],
+                                ),
+                          .18,
+                        ),
                         if (!widget.service.isConnected) ...[
                           const SizedBox(height: 18),
-                          _demoNotice(),
+                          _entrance(_demoNotice(), .3),
                         ],
                       ],
                     ),
@@ -234,11 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          weekdays[now.weekday - 1] +
-              ' ' +
-              now.day.toString() +
-              ' ' +
-              months[now.month - 1],
+          '${weekdays[now.weekday - 1]} ${now.day} ${months[now.month - 1]}',
           style: const TextStyle(
             color: muted,
             fontSize: 12,
@@ -269,19 +363,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required bool wide,
     required int steps,
     required List<Workout> workouts,
+    required DateTime selectedDate,
   }) {
     final todaysWorkouts = workouts
-        .where((w) => w.date == FitnessService.dateKey(today))
+        .where((w) => w.date == FitnessService.dateKey(selectedDate))
         .toList();
     final minutes = todaysWorkouts.fold<int>(
       0,
-      (sum, workout) => sum + workout.durationMinutes,
+      (runningTotal, workout) => runningTotal + workout.durationMinutes,
     );
     final calories = todaysWorkouts.fold<int>(
       0,
-      (sum, workout) => sum + workout.calories,
+      (runningTotal, workout) => runningTotal + workout.calories,
     );
-    final stepCard = _stepsCard(context, steps);
+    final stepCard = _stepsCard(context, steps, selectedDate);
 
     Widget caloriesCard() => _metricCard(
       icon: Icons.local_fire_department_outlined,
@@ -341,101 +436,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _stepsCard(BuildContext context, int steps) => Container(
-    padding: const EdgeInsets.all(22),
-    decoration: BoxDecoration(
-      color: green,
-      borderRadius: BorderRadius.circular(25),
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.directions_walk, color: lime, size: 19),
-                  const SizedBox(width: 7),
-                  const Text(
-                    'Pas aujourd’hui',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Saisir le nombre de pas',
-                    onPressed: () => _showStepsDialog(context, steps),
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(
-                      Icons.edit_outlined,
-                      color: Colors.white70,
-                      size: 18,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              Text(
-                _number(steps),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 38,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _number(stepGoal) + ' pas par jour',
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
-              ),
-            ],
+  Widget _stepsCard(BuildContext context, int steps, DateTime selectedDate) =>
+      Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF10392C), Color(0xFF1D6047)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: green.withValues(alpha: .18),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
         ),
-        const SizedBox(width: 15),
-        SizedBox(
-          width: 106,
-          height: 106,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox.expand(
-                child: CircularProgressIndicator(
-                  value: (steps / stepGoal).clamp(0.0, 1.0),
-                  strokeWidth: 9,
-                  backgroundColor: Colors.white.withValues(alpha: .16),
-                  valueColor: const AlwaysStoppedAnimation(lime),
-                  strokeCap: StrokeCap.round,
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.directions_walk, color: lime, size: 19),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Pas le ${_shortDate(selectedDate)}',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Saisir le nombre de pas',
+                        onPressed: () =>
+                            _showStepsDialog(context, steps, selectedDate),
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 7),
+                  TweenAnimationBuilder<int>(
+                    tween: IntTween(begin: 0, end: steps),
+                    duration: const Duration(milliseconds: 850),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animatedSteps, _) => Text(
+                      _number(animatedSteps),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
-                    ((steps / stepGoal) * 100).round().toString() + '%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 21,
-                    ),
-                  ),
-                  const Text(
-                    'objectif',
-                    style: TextStyle(color: Colors.white60, fontSize: 10),
+                    '${_number(stepGoal)} pas par jour',
+                    style: const TextStyle(color: Colors.white60, fontSize: 12),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 15),
+            SizedBox(
+              width: 106,
+              height: 106,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(
+                      begin: 0,
+                      end: (steps / stepGoal).clamp(0.0, 1.0),
+                    ),
+                    duration: const Duration(milliseconds: 850),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, progress, _) => SizedBox.expand(
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 9,
+                        backgroundColor: Colors.white.withValues(alpha: .16),
+                        valueColor: const AlwaysStoppedAnimation(lime),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                          begin: 0,
+                          end: (steps / stepGoal * 100),
+                        ),
+                        duration: const Duration(milliseconds: 850),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, percent, _) => Text(
+                          '${percent.round()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 21,
+                          ),
+                        ),
+                      ),
+                      const Text(
+                        'objectif',
+                        style: TextStyle(color: Colors.white60, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _metricCard({
     required IconData icon,
@@ -451,6 +580,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       color: Colors.white,
       borderRadius: BorderRadius.circular(22),
       border: Border.all(color: line),
+      boxShadow: [
+        BoxShadow(
+          color: ink.withValues(alpha: .025),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
+        ),
+      ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,13 +620,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: ink,
-                letterSpacing: -1,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, .16),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: Text(
+                value,
+                key: ValueKey(value),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
+                  letterSpacing: -1,
+                ),
               ),
             ),
             const SizedBox(width: 6),
@@ -507,7 +657,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   );
 
-  Widget _weeklyCard(Map<String, int> steps) {
+  Widget _weeklyCard(Map<String, int> steps, List<Workout> workouts) {
     final days = List.generate(
       7,
       (index) => weekStart.add(Duration(days: index)),
@@ -515,25 +665,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final values = days
         .map((day) => steps[FitnessService.dateKey(day)] ?? 0)
         .toList();
-    final total = values.fold<int>(0, (sum, value) => sum + value);
-    const labels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    final total = values.fold<int>(
+      0,
+      (runningTotal, value) => runningTotal + value,
+    );
+    final weeklyMinutes = workouts.fold<int>(
+      0,
+      (runningTotal, workout) => runningTotal + workout.durationMinutes,
+    );
+    final weeklyCalories = workouts.fold<int>(
+      0,
+      (runningTotal, workout) => runningTotal + workout.calories,
+    );
+    final weeklyDistance = workouts.fold<double>(
+      0,
+      (runningTotal, workout) => runningTotal + (workout.distanceKm ?? 0),
+    );
+    const labels = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
 
     return _panel(
       title: 'Cette semaine',
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F4EF),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text(
-          'Semaine en cours',
-          style: TextStyle(
-            color: muted,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Semaine précédente',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _changeWeek(-1),
+            icon: const Icon(Icons.chevron_left_rounded, size: 20),
           ),
-        ),
+          Text(
+            '${weekStart.day}/${weekStart.month}',
+            style: const TextStyle(
+              color: muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Semaine suivante',
+            visualDensity: VisualDensity.compact,
+            onPressed: weekStart.isBefore(FitnessService.startOfWeek(today))
+                ? () => _changeWeek(1)
+                : null,
+            icon: const Icon(Icons.chevron_right_rounded, size: 20),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,72 +735,189 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(7, (index) {
                 final active =
-                    days[index].weekday == DateTime.now().weekday &&
                     FitnessService.dateKey(days[index]) ==
-                        FitnessService.dateKey(DateTime.now());
+                    FitnessService.dateKey(today);
+                final selected =
+                    FitnessService.dateKey(days[index]) ==
+                    FitnessService.dateKey(selectedDay);
                 final ratio = (values[index] / 10000).clamp(0.05, 1.0);
                 return Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          values[index] == 0 ? '' : _compact(values[index]),
-                          style: const TextStyle(
-                            color: muted,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => setState(() => selectedDay = days[index]),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 4,
                           ),
-                        ),
-                        const SizedBox(height: 7),
-                        Expanded(
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: FractionallySizedBox(
-                              heightFactor: values[index] == 0 ? 0.04 : ratio,
-                              widthFactor: .72,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: active
-                                      ? green
-                                      : const Color(0xFFDCE9D5),
-                                  borderRadius: BorderRadius.circular(9),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                values[index] == 0
+                                    ? ''
+                                    : _compact(values[index]),
+                                style: const TextStyle(
+                                  color: muted,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 7),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: TweenAnimationBuilder<double>(
+                                    tween: Tween<double>(
+                                      begin: 0,
+                                      end: values[index] == 0 ? .04 : ratio,
+                                    ),
+                                    duration: const Duration(milliseconds: 650),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, barHeight, _) =>
+                                        FractionallySizedBox(
+                                          heightFactor: barHeight,
+                                          widthFactor: .72,
+                                          child: AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 220,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: selected
+                                                  ? green
+                                                  : active
+                                                  ? lime
+                                                  : const Color(0xFFDCE9D5),
+                                              borderRadius:
+                                                  BorderRadius.circular(9),
+                                            ),
+                                          ),
+                                        ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 9),
+                              Text(
+                                '${labels[index]} ${days[index].day}',
+                                style: TextStyle(
+                                  color: selected || active ? green : muted,
+                                  fontSize: 10,
+                                  fontWeight: selected || active
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 9),
-                        Text(
-                          labels[index],
-                          style: TextStyle(
-                            color: active ? green : muted,
-                            fontSize: 10,
-                            fontWeight: active
-                                ? FontWeight.w800
-                                : FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 );
               }),
             ),
           ),
+          const SizedBox(height: 9),
+          const Text(
+            'Touche une journée pour consulter ses détails.',
+            style: TextStyle(color: muted, fontSize: 10),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _weekMetric(
+                  icon: Icons.fitness_center_rounded,
+                  label: 'Séances',
+                  value: workouts.length.toString(),
+                  subtitle: weeklyDistance > 0
+                      ? '${weeklyDistance.toStringAsFixed(1)} km parcourus'
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _weekMetric(
+                  icon: Icons.timer_outlined,
+                  label: 'Minutes',
+                  value: weeklyMinutes.toString(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _weekMetric(
+                  icon: Icons.local_fire_department_outlined,
+                  label: 'Calories',
+                  value: _compact(weeklyCalories),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
+  Widget _weekMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    String? subtitle,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 11),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF5F7F3),
+      borderRadius: BorderRadius.circular(13),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 15, color: green),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: ink,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: muted, fontSize: 9),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: green, fontSize: 8),
+          ),
+        ],
+      ],
+    ),
+  );
+
   Widget _activityCard(List<Workout> workouts) {
-    final visible = workouts.take(4).toList();
+    final dayKey = FitnessService.dateKey(selectedDay);
+    final visible = workouts
+        .where((workout) => workout.date == dayKey)
+        .toList();
 
     return _panel(
-      title: 'Séances récentes',
+      title: 'Séances du ${_shortDate(selectedDay)}',
       trailing: Text(
-        workouts.length.toString() + ' cette semaine',
+        visible.length.toString() +
+            (visible.length == 1 ? ' séance' : ' séances'),
         style: const TextStyle(
           color: muted,
           fontSize: 11,
@@ -635,7 +929,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
-                  'Pas encore de séance cette semaine.',
+                  'Aucune séance ce jour. Ajoute une activité pour la noter.',
                   style: TextStyle(color: muted, fontSize: 12),
                 ),
               ),
@@ -643,7 +937,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : Column(
               children: [
                 for (var i = 0; i < visible.length; i++) ...[
-                  _workoutRow(visible[i]),
+                  _workoutRow(
+                    visible[i],
+                    onEdit: () =>
+                        _showWorkoutForm(context, workout: visible[i]),
+                    onDelete: () => _deleteWorkout(visible[i]),
+                  ),
                   if (i != visible.length - 1)
                     const Divider(height: 18, color: line),
                 ],
@@ -652,7 +951,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _workoutRow(Workout workout) {
+  Widget _workoutRow(
+    Workout workout, {
+    required VoidCallback onEdit,
+    required VoidCallback onDelete,
+  }) {
+    final details = [
+      '${workout.durationMinutes} min',
+      '${workout.calories} kcal',
+      if (workout.distanceKm != null)
+        '${workout.distanceKm!.toStringAsFixed(1)} km',
+      if (workout.heartRateBpm != null) '${workout.heartRateBpm} bpm',
+      if (workout.sets != null && workout.repetitions != null)
+        '${workout.sets} × ${workout.repetitions}',
+    ].join('  ·  ');
+    final note = workout.notes?.trim();
     final icon =
         workout.type.toLowerCase().contains('run') ||
             workout.type.toLowerCase().contains('course')
@@ -691,14 +1004,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                workout.durationMinutes.toString() +
-                    ' min  ·  ' +
-                    workout.calories.toString() +
-                    ' kcal',
+                details,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: muted, fontSize: 10),
               ),
+              if (note != null && note.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  note,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: muted, fontSize: 9),
+                ),
+              ],
             ],
           ),
+        ),
+        IconButton(
+          tooltip: 'Modifier la séance',
+          onPressed: onEdit,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.edit_outlined, size: 18, color: muted),
+        ),
+        IconButton(
+          tooltip: 'Supprimer la séance',
+          onPressed: onDelete,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.delete_outline, size: 18, color: muted),
         ),
       ],
     );
@@ -715,6 +1048,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       color: Colors.white,
       border: Border.all(color: line),
       borderRadius: BorderRadius.circular(23),
+      boxShadow: [
+        BoxShadow(
+          color: green.withValues(alpha: .035),
+          blurRadius: 26,
+          offset: const Offset(0, 9),
+        ),
+      ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -767,15 +1107,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   );
 
-  Future<void> _showStepsDialog(BuildContext context, int current) async {
+  Future<void> _showStepsDialog(
+    BuildContext context,
+    int current,
+    DateTime date,
+  ) async {
     final value = await showDialog<int>(
       context: context,
-      builder: (_) => StepsDialog(current: current),
+      builder: (_) => StepsDialog(current: current, date: date),
     );
     if (value == null || !mounted) return;
 
     try {
-      await widget.service.setTodaySteps(value);
+      await widget.service.setStepsForDate(date, value);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -784,13 +1128,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _showWorkoutForm(BuildContext context) async {
+  Future<void> _showWorkoutForm(
+    BuildContext context, {
+    Workout? workout,
+  }) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => WorkoutFormSheet(service: widget.service),
+      builder: (_) => WorkoutFormSheet(
+        service: widget.service,
+        initialDate: selectedDay,
+        workout: workout,
+      ),
     );
+  }
+
+  Future<void> _deleteWorkout(Workout workout) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Supprimer cette séance ?'),
+        content: Text('Cette action supprimera « ${workout.type} ».'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true || !mounted) return;
+    try {
+      await widget.service.deleteWorkout(workout.id);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_saveErrorMessage(error))));
+    }
   }
 
   String _number(int value) {
@@ -804,14 +1184,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _compact(int value) => value >= 1000
-      ? (value / 1000).toStringAsFixed(1) + 'k'
+      ? '${(value / 1000).toStringAsFixed(1)}k'
       : value.toString();
 }
 
 class StepsDialog extends StatefulWidget {
-  const StepsDialog({required this.current, super.key});
+  const StepsDialog({required this.current, required this.date, super.key});
 
   final int current;
+  final DateTime date;
 
   @override
   State<StepsDialog> createState() => _StepsDialogState();
@@ -835,7 +1216,7 @@ class _StepsDialogState extends State<StepsDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Saisir tes pas'),
+    title: Text('Saisir tes pas · ${_shortDate(widget.date)}'),
     content: Form(
       key: formKey,
       child: TextFormField(
@@ -843,7 +1224,7 @@ class _StepsDialogState extends State<StepsDialog> {
         autofocus: true,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
-          labelText: 'Nombre de pas aujourd’hui',
+          labelText: 'Nombre de pas pour ce jour',
           suffixText: 'pas',
           errorMaxLines: 2,
         ),
@@ -877,8 +1258,16 @@ class _StepsDialogState extends State<StepsDialog> {
 }
 
 class WorkoutFormSheet extends StatefulWidget {
-  const WorkoutFormSheet({required this.service, super.key});
+  const WorkoutFormSheet({
+    required this.service,
+    required this.initialDate,
+    this.workout,
+    super.key,
+  });
+
   final FitnessService service;
+  final DateTime initialDate;
+  final Workout? workout;
 
   @override
   State<WorkoutFormSheet> createState() => _WorkoutFormSheetState();
@@ -888,8 +1277,13 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
   final formKey = GlobalKey<FormState>();
   final durationController = TextEditingController();
   final caloriesController = TextEditingController();
-  String exercise = 'Course';
-  DateTime date = DateTime.now();
+  final distanceController = TextEditingController();
+  final heartRateController = TextEditingController();
+  final setsController = TextEditingController();
+  final repetitionsController = TextEditingController();
+  final notesController = TextEditingController();
+  late String exercise;
+  late DateTime date;
   bool saving = false;
 
   static const exercises = [
@@ -898,13 +1292,40 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
     'Vélo',
     'Musculation',
     'Yoga',
+    'Course à pied',
+    'Cyclisme',
+    'Morning run',
+    'Strength training',
+    'Cycling',
     'Autre',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final workout = widget.workout;
+    durationController.text = workout?.durationMinutes.toString() ?? '';
+    caloriesController.text = workout?.calories.toString() ?? '';
+    distanceController.text = workout?.distanceKm?.toString() ?? '';
+    heartRateController.text = workout?.heartRateBpm?.toString() ?? '';
+    setsController.text = workout?.sets?.toString() ?? '';
+    repetitionsController.text = workout?.repetitions?.toString() ?? '';
+    notesController.text = workout?.notes ?? '';
+    exercise = workout?.type ?? 'Course';
+    date = workout == null
+        ? widget.initialDate
+        : DateTime.tryParse(workout.date) ?? widget.initialDate;
+  }
 
   @override
   void dispose() {
     durationController.dispose();
     caloriesController.dispose();
+    distanceController.dispose();
+    heartRateController.dispose();
+    setsController.dispose();
+    repetitionsController.dispose();
+    notesController.dispose();
     super.dispose();
   }
 
@@ -935,9 +1356,11 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                 ),
               ),
               const SizedBox(height: 22),
-              const Text(
-                'Nouvelle séance',
-                style: TextStyle(
+              Text(
+                widget.workout == null
+                    ? 'Nouvelle séance'
+                    : 'Modifier la séance',
+                style: const TextStyle(
                   color: ink,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -951,7 +1374,7 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
               ),
               const SizedBox(height: 22),
               DropdownButtonFormField<String>(
-                value: exercise,
+                initialValue: exercise,
                 decoration: const InputDecoration(
                   labelText: 'Type d’exercice',
                   border: OutlineInputBorder(),
@@ -963,7 +1386,15 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                     )
                     .toList(),
                 onChanged: (value) {
-                  if (value != null) setState(() => exercise = value);
+                  if (value != null) {
+                    setState(() {
+                      exercise = value;
+                      if (!_isStrengthExercise) {
+                        setsController.clear();
+                        repetitionsController.clear();
+                      }
+                    });
+                  }
                 },
               ),
               const SizedBox(height: 14),
@@ -999,6 +1430,120 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                 ],
               ),
               const SizedBox(height: 14),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F9F5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: line),
+                ),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 13),
+                  childrenPadding: const EdgeInsets.fromLTRB(13, 0, 13, 14),
+                  leading: const Icon(Icons.tune_rounded, color: green),
+                  title: const Text(
+                    'Détails supplémentaires',
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Facultatifs : distance, rythme, notes…',
+                    style: TextStyle(color: muted, fontSize: 10),
+                  ),
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: distanceController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Distance',
+                              suffixText: 'km',
+                              border: OutlineInputBorder(),
+                              errorMaxLines: 2,
+                            ),
+                            validator: _validateDistance,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: heartRateController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Fréquence cardiaque',
+                              suffixText: 'bpm',
+                              border: OutlineInputBorder(),
+                              errorMaxLines: 2,
+                            ),
+                            validator: _validateHeartRate,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_isStrengthExercise) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: setsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Séries',
+                                border: OutlineInputBorder(),
+                                errorMaxLines: 2,
+                              ),
+                              validator: (value) => _validatePairedCount(
+                                value,
+                                otherValue: repetitionsController.text,
+                                otherLabel: 'répétitions',
+                                fieldLabel: 'séries',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: repetitionsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Répétitions',
+                                border: OutlineInputBorder(),
+                                errorMaxLines: 2,
+                              ),
+                              validator: (value) => _validatePairedCount(
+                                value,
+                                otherValue: setsController.text,
+                                otherLabel: 'séries',
+                                fieldLabel: 'répétitions',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesController,
+                      maxLength: 300,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (facultatif)',
+                        hintText: 'Comment s’est passée ta séance ?',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
               OutlinedButton.icon(
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today_outlined, size: 17),
@@ -1007,11 +1552,7 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                           date.month == DateTime.now().month &&
                           date.day == DateTime.now().day
                       ? 'Aujourd’hui'
-                      : date.day.toString() +
-                            '/' +
-                            date.month.toString() +
-                            '/' +
-                            date.year.toString(),
+                      : '${date.day}/${date.month}/${date.year}',
                 ),
               ),
               const SizedBox(height: 20),
@@ -1031,7 +1572,11 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
                         )
                       : const Icon(Icons.check_rounded),
                   label: Text(
-                    saving ? 'Enregistrement…' : 'Enregistrer la séance',
+                    saving
+                        ? 'Enregistrement…'
+                        : widget.workout == null
+                        ? 'Enregistrer la séance'
+                        : 'Enregistrer les modifications',
                   ),
                 ),
               ),
@@ -1068,6 +1613,54 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
     return null;
   }
 
+  bool get _isStrengthExercise =>
+      exercise.toLowerCase().contains('musculation') ||
+      exercise.toLowerCase().contains('strength');
+
+  String? _validateDistance(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final distance = double.tryParse(text.replaceAll(',', '.'));
+    if (distance == null) {
+      return 'Entre une distance valide (ex. 2,5).';
+    }
+    if (distance <= 0) return 'La distance doit être supérieure à 0.';
+    return null;
+  }
+
+  String? _validateHeartRate(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final heartRate = int.tryParse(text);
+    if (heartRate == null) return 'Entre un nombre entier de battements.';
+    if (heartRate < 30 || heartRate > 240) {
+      return 'La fréquence doit être comprise entre 30 et 240 bpm.';
+    }
+    return null;
+  }
+
+  String? _validatePairedCount(
+    String? value, {
+    required String otherValue,
+    required String otherLabel,
+    required String fieldLabel,
+  }) {
+    final text = value?.trim() ?? '';
+    final otherText = otherValue.trim();
+    if (text.isEmpty && otherText.isEmpty) return null;
+    if (text.isEmpty) return 'Indique aussi le nombre de $fieldLabel.';
+    final count = int.tryParse(text);
+    if (count == null) return 'Le nombre de $fieldLabel doit être entier.';
+    if (count <= 0) return 'Le nombre de $fieldLabel doit être supérieur à 0.';
+    if (otherText.isEmpty) return 'Indique aussi le nombre de $otherLabel.';
+    final otherCount = int.tryParse(otherText);
+    if (otherCount == null) return 'Le nombre de $otherLabel doit être entier.';
+    if (otherCount <= 0) {
+      return 'Le nombre de $otherLabel doit être supérieur à 0.';
+    }
+    return null;
+  }
+
   Future<void> _pickDate() async {
     final selected = await showDatePicker(
       context: context,
@@ -1084,12 +1677,47 @@ class _WorkoutFormSheetState extends State<WorkoutFormSheet> {
     if (!formKey.currentState!.validate()) return;
     setState(() => saving = true);
     try {
-      await widget.service.addWorkout(
-        type: exercise,
-        duration: int.parse(durationController.text.trim()),
-        calories: int.parse(caloriesController.text.trim()),
-        date: date,
-      );
+      final duration = int.parse(durationController.text.trim());
+      final calories = int.parse(caloriesController.text.trim());
+      final distanceText = distanceController.text.trim().replaceAll(',', '.');
+      final distance = distanceText.isEmpty ? null : double.parse(distanceText);
+      final heartRate = heartRateController.text.trim().isEmpty
+          ? null
+          : int.parse(heartRateController.text.trim());
+      final sets = setsController.text.trim().isEmpty
+          ? null
+          : int.parse(setsController.text.trim());
+      final repetitions = repetitionsController.text.trim().isEmpty
+          ? null
+          : int.parse(repetitionsController.text.trim());
+      final notes = notesController.text.trim();
+      final existingWorkout = widget.workout;
+      if (existingWorkout == null) {
+        await widget.service.addWorkout(
+          type: exercise,
+          duration: duration,
+          calories: calories,
+          date: date,
+          distanceKm: distance,
+          heartRateBpm: heartRate,
+          sets: sets,
+          repetitions: repetitions,
+          notes: notes.isEmpty ? null : notes,
+        );
+      } else {
+        await widget.service.updateWorkout(
+          id: existingWorkout.id,
+          type: exercise,
+          duration: duration,
+          calories: calories,
+          date: date,
+          distanceKm: distance,
+          heartRateBpm: heartRate,
+          sets: sets,
+          repetitions: repetitions,
+          notes: notes.isEmpty ? null : notes,
+        );
+      }
       if (mounted) Navigator.pop(context);
     } catch (error) {
       if (!mounted) return;

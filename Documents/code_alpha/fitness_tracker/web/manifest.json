@@ -1,11 +1,11 @@
 {
-    "name": "fitness_tracker",
-    "short_name": "fitness_tracker",
+    "name": "Pulse Fitness",
+    "short_name": "Pulse",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F5F6F2",
+    "theme_color": "#10392C",
+    "description": "Suis tes pas, tes séances et ta progression avec Pulse Fitness.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

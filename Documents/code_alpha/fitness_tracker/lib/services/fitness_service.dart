@@ -195,6 +195,11 @@ class FitnessService {
     required int duration,
     required int calories,
     required DateTime date,
+    double? distanceKm,
+    int? heartRateBpm,
+    int? sets,
+    int? repetitions,
+    String? notes,
   }) async {
     final key = dateKey(date);
     if (_firestore != null) {
@@ -203,25 +208,89 @@ class FitnessService {
         'exerciseType': type,
         'durationMinutes': duration,
         'caloriesBurned': calories,
+        'distanceKm': distanceKm,
+        'heartRateBpm': heartRateBpm,
+        'sets': sets,
+        'repetitions': repetitions,
+        'notes': notes,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } else {
       _demoWorkouts.insert(
         0,
         Workout(
-          id: 'demo-' + DateTime.now().microsecondsSinceEpoch.toString(),
+          id: 'demo-${DateTime.now().microsecondsSinceEpoch}',
           date: key,
           type: type,
           durationMinutes: duration,
           calories: calories,
+          distanceKm: distanceKm,
+          heartRateBpm: heartRateBpm,
+          sets: sets,
+          repetitions: repetitions,
+          notes: notes,
         ),
       );
       _changes.add(null);
     }
   }
 
-  Future<void> setTodaySteps(int steps) async {
-    final key = dateKey(DateTime.now());
+  Future<void> updateWorkout({
+    required String id,
+    required String type,
+    required int duration,
+    required int calories,
+    required DateTime date,
+    double? distanceKm,
+    int? heartRateBpm,
+    int? sets,
+    int? repetitions,
+    String? notes,
+  }) async {
+    final key = dateKey(date);
+    if (_firestore != null) {
+      await _workouts.doc(id).update({
+        'date': key,
+        'exerciseType': type,
+        'durationMinutes': duration,
+        'caloriesBurned': calories,
+        'distanceKm': distanceKm,
+        'heartRateBpm': heartRateBpm,
+        'sets': sets,
+        'repetitions': repetitions,
+        'notes': notes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      final index = _demoWorkouts.indexWhere((workout) => workout.id == id);
+      if (index == -1) return;
+      _demoWorkouts[index] = Workout(
+        id: id,
+        date: key,
+        type: type,
+        durationMinutes: duration,
+        calories: calories,
+        distanceKm: distanceKm,
+        heartRateBpm: heartRateBpm,
+        sets: sets,
+        repetitions: repetitions,
+        notes: notes,
+      );
+      _changes.add(null);
+    }
+  }
+
+  Future<void> deleteWorkout(String id) async {
+    if (_firestore != null) {
+      await _workouts.doc(id).delete();
+    } else {
+      _demoWorkouts.removeWhere((workout) => workout.id == id);
+      _changes.add(null);
+    }
+  }
+
+  Future<void> setStepsForDate(DateTime date, int steps) async {
+    final key = dateKey(date);
     if (_firestore != null) {
       await _dailyStats.doc(key).set({
         'date': key,

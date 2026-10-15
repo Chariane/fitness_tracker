@@ -2,16 +2,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Pulse Fitness (Chrome, stable port)",
+      "name": "Pulse Fitness Web (persistent Chrome session)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "deviceId": "chrome",
+      "deviceId": "web-server",
       "toolArgs": [
         "--web-hostname=localhost",
         "--web-port=5000"
-      ],
-      "templateFor": ""
+      ]
     }
   ]
 }
